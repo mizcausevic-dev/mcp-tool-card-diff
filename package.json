@@ -1,0 +1,61 @@
+{
+  "name": "mcp-tool-card-diff",
+  "version": "0.1.0",
+  "description": "Diff two MCP Tool Card documents — classify safety transitions (side-effect class escalation, reversible flipped to false, rate-limit removed, PII / secrets exposure escalation, human-approval removed, external systems added) and surface a breaking flag. The MCP tool-card counterpart to agent-card-diff.",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "author": "mizcausevic-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mizcausevic-dev/mcp-tool-card-diff"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tool-card",
+    "diff",
+    "breaking-change",
+    "governance",
+    "ai-governance",
+    "safety",
+    "typescript"
+  ],
+  "bin": {
+    "mcp-tool-card-diff": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "demo": "tsx src/cli.ts fixtures/card-v1.json fixtures/card-v2-nonbreaking.json --format markdown",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^2.1.8"
+  }
+}
