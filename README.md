@@ -58,8 +58,9 @@ console.log(toSummary(diff));      // "BREAKING 11 changes" / "no changes"
 
 - [**`mcp-tool-card-spec`**](https://github.com/mizcausevic-dev/mcp-tool-card-spec) — the schema this diffs against.
 - [**`mcp-tool-card-generator`**](https://github.com/mizcausevic-dev/mcp-tool-card-generator) — produces the cards.
-- [**`mcp-tool-card-summary`**](https://github.com/mizcausevic-dev/mcp-tool-card-summary) — fleet-level analysis across a directory of cards.
 - [**`agent-card-diff`**](https://github.com/mizcausevic-dev/agent-card-diff) — sibling: same shape, for A2A AgentCards instead of MCP Tool Cards.
+
+Historical reference: [**`mcp-tool-card-summary`**](https://github.com/mizcausevic-dev/mcp-tool-card-summary) provided fleet-level analysis across a directory of cards. GitHub marked it archived and read-only when checked on 2026-10-30; its source remains available.
 
 ## Develop
 
