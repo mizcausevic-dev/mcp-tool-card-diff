@@ -101,6 +101,143 @@ describe("diffToolCards", () => {
     const r = diffToolCards(v1, v2);
     expect(r.changes.some((c) => c.reason === "tested-with-provider-removed")).toBe(true);
   });
+
+  it("detects one removed LLM from the published Tool Card example", () => {
+    // mcp-tool-card-spec/examples/billing-lookup.json has two Anthropic LLMs.
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    after.tested_with = after.tested_with?.filter((entry) => !("llm" in entry && entry.llm === "claude-sonnet-4-6"));
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.changes).toContainEqual(expect.objectContaining({
+      reason: "tested-with-provider-removed",
+      detail: expect.stringContaining("claude-sonnet-4-6")
+    }));
+    expect(r.removed.testedProviders).toHaveLength(1);
+  });
+
+  it("reports a reduced published pass rate without inventing a breaking threshold", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const entry = after.tested_with?.[0];
+    if (!entry || !("llm" in entry)) throw new Error("official fixture is missing tested_with[0]");
+    entry.pass_rate = 0.75;
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(false);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "tested-with-evidence-changed" }));
+    expect(r.removed.testedProviders).toEqual([]);
+  });
+
+  it("reports a newer test timestamp as an evidence change for the same identity", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const entry = after.tested_with?.[0];
+    if (!entry || !("llm" in entry)) throw new Error("official fixture is missing tested_with[0]");
+    entry.tested_at = "2026-05-09T10:00:00Z";
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(false);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "tested-with-evidence-changed" }));
+  });
+
+  it("treats a changed test-suite URI as lost and added evidence", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const entry = after.tested_with?.[0];
+    if (!entry || !("llm" in entry)) throw new Error("official fixture is missing tested_with[0]");
+    entry.test_suite_uri = "https://eval.kineticgain.com/suites/mcp-billing-v3";
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "tested-with-provider-removed" }));
+    expect(r.added.testedProviders).toHaveLength(1);
+    expect(r.removed.testedProviders).toHaveLength(1);
+  });
+
+  it("flags removal of the spec audit log URI", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    delete after.audit.log_uri;
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "audit-log-location-removed" }));
+    expect(r.removed.auditLogs).toEqual(["https://audit.kineticgain.com/mcp/billing-lookup"]);
+  });
+
+  it("reports an added spec audit log URI without calling the cards equivalent", () => {
+    const after = fixture("official-billing-lookup.json");
+    const before = structuredClone(after);
+    delete before.audit.log_uri;
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(false);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "audit-log-location-added" }));
+    expect(toSummary(r)).not.toBe("no changes");
+  });
+
+  it("reports a new model/eval entry as a nonbreaking change", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const extra = structuredClone(after.tested_with?.[0]);
+    if (!extra || !("llm" in extra)) throw new Error("official fixture is missing tested_with[0]");
+    extra.llm = "claude-opus-4-8";
+    after.tested_with?.push(extra);
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(false);
+    expect(r.changes).toContainEqual(expect.objectContaining({ reason: "tested-with-entry-added" }));
+    expect(r.added.testedProviders).toHaveLength(1);
+    expect(toSummary(r)).not.toBe("no changes");
+  });
+
+  it("detects a removed run when one LLM has multiple test suites", () => {
+    const before = fixture("official-billing-lookup.json");
+    const extra = structuredClone(before.tested_with?.[0]);
+    if (!extra || !("llm" in extra)) throw new Error("official fixture is missing tested_with[0]");
+    extra.test_suite_uri = "https://eval.kineticgain.com/suites/mcp-billing-v3";
+    before.tested_with?.push(extra);
+    const after = structuredClone(before);
+    after.tested_with?.pop();
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.removed.testedProviders).toHaveLength(1);
+  });
+
+  it("detects a removed repeated run with the same LLM and test suite", () => {
+    const before = fixture("official-billing-lookup.json");
+    const extra = structuredClone(before.tested_with?.[0]);
+    if (!extra || !("llm" in extra)) throw new Error("official fixture is missing tested_with[0]");
+    extra.tested_at = "2026-05-09T10:00:00Z";
+    before.tested_with?.push(extra);
+    const after = structuredClone(before);
+    after.tested_with?.pop();
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.removed.testedProviders).toHaveLength(1);
+  });
+
+  it("detects a removed exact duplicate rather than collapsing its count", () => {
+    const before = fixture("official-billing-lookup.json");
+    const extra = structuredClone(before.tested_with?.[0]);
+    if (!extra) throw new Error("official fixture is missing tested_with[0]");
+    before.tested_with?.push(extra);
+    const after = structuredClone(before);
+    after.tested_with?.pop();
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.removed.testedProviders).toHaveLength(1);
+  });
+
+  it("does not hide a lost run behind two new runs for the same identity", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const first = after.tested_with?.[0];
+    if (!first || !("llm" in first)) throw new Error("official fixture is missing tested_with[0]");
+    first.tested_at = "2026-05-09T10:00:00Z";
+    const extra = structuredClone(first);
+    extra.tested_at = "2026-05-10T10:00:00Z";
+    after.tested_with?.push(extra);
+    const r = diffToolCards(before, after);
+    expect(r.breaking).toBe(true);
+    expect(r.removed.testedProviders).toHaveLength(1);
+    expect(r.added.testedProviders).toHaveLength(2);
+  });
 });
 
 describe("formatters", () => {
@@ -113,6 +250,20 @@ describe("formatters", () => {
   it("toMarkdown emits 'No changes.' on equivalent cards", () => {
     const v1 = fixture("card-v1.json");
     expect(toMarkdown(diffToolCards(v1, JSON.parse(JSON.stringify(v1))))).toContain("No changes");
+  });
+
+  it("escapes untrusted evidence detail before rendering a PR table", () => {
+    const before = fixture("official-billing-lookup.json");
+    const after = structuredClone(before);
+    const entry = after.tested_with?.[0];
+    if (!entry || !("llm" in entry)) throw new Error("official fixture is missing tested_with[0]");
+    entry.test_suite_uri = "https://example.invalid/suite|spoof\n| forged | row ![track](https://tracker.invalid/p) [click](https://evil.invalid)";
+    const markdown = toMarkdown(diffToolCards(before, after));
+    expect(markdown).toContain("&#124;spoof");
+    expect(markdown).not.toContain("\n| forged | row");
+    expect(markdown).toContain("&#33;&#91;track&#93;");
+    expect(markdown).not.toContain("![track](https://tracker.invalid/p)");
+    expect(markdown).not.toContain("[click](https://evil.invalid)");
   });
 
   it("toSummary returns 'no changes' / 'BREAKING N changes'", () => {
